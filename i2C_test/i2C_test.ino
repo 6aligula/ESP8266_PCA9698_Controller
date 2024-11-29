@@ -3,6 +3,10 @@
 #define PCA9698_ADDRESS 0x20 // Dirección del PCA9698
 #define OE_PIN 0             // Pin GPIO para controlar el Output Enable (OE)
 
+// Definiciones de pines
+#define LED1_PIN 0  // P0_0
+#define LED2_PIN 8  // P1_0
+
 void configurePinAsOutput(uint8_t pin);
 void writeToOutputRegister(uint8_t pin, bool state);
 void setOutputEnable(bool enable);
@@ -18,9 +22,9 @@ void setup() {
   // Configurar el pin OE
   setOutputEnable(true);
 
-  // Configurar P0_0 y P0_1 como salidas
-  configurePinAsOutput(0); // LED 1 en P0_0
-  configurePinAsOutput(1); // LED 2 en P0_1
+  // Configurar P0_0 y P1_0 como salidas
+  configurePinAsOutput(LED1_PIN); // LED 1 en P0_0
+  configurePinAsOutput(LED2_PIN); // LED 2 en P1_0
 
   Serial.println("PCA9698 configurado. Iniciando loop...");
 }
@@ -36,14 +40,14 @@ void loop() {
   writeToOutputRegister(0, false);
   delay(1000);
 
-  // Encender el LED conectado a P0_1
-  Serial.println("Encendiendo LED en P0_1...");
-  writeToOutputRegister(1, true);
+  // Encender el LED conectado a P1_0
+  Serial.println("Encendiendo LED en P1_0...");
+  writeToOutputRegister(LED2_PIN, true);
   delay(1000);
 
-  // Apagar el LED conectado a P0_1
-  Serial.println("Apagando LED en P0_1...");
-  writeToOutputRegister(1, false);
+  // Apagar el LED conectado a P1_0
+  Serial.println("Apagando LED en P1_0...");
+  writeToOutputRegister(LED2_PIN, false);
   delay(1000);
 }
 
