@@ -7,7 +7,7 @@
 #define LED1_PIN 0  // P0_0
 #define LED2_PIN 8  // P1_0
 
-void configurePinAsOutput(uint8_t pin);
+void configureAllPinsAsOutput();
 void writeToOutputRegister(uint8_t pin, bool state);
 void setOutputEnable(bool enable);
 
@@ -22,22 +22,21 @@ void setup() {
   // Configurar el pin OE
   setOutputEnable(true);
 
-  // Configurar P0_0 y P1_0 como salidas
-  configurePinAsOutput(LED1_PIN); // LED 1 en P0_0
-  configurePinAsOutput(LED2_PIN); // LED 2 en P1_0
+  // Configurar TODOS los pines como salidas
+  configureAllPinsAsOutput();
 
-  Serial.println("PCA9698 configurado. Iniciando loop...");
+  Serial.println("PCA9698 configurado con todos los pines como salidas. Iniciando loop...");
 }
 
 void loop() {
   // Encender el LED conectado a P0_0
   Serial.println("Encendiendo LED en P0_0...");
-  writeToOutputRegister(0, true);
+  writeToOutputRegister(LED1_PIN, true);
   delay(1000);
 
   // Apagar el LED conectado a P0_0
   Serial.println("Apagando LED en P0_0...");
-  writeToOutputRegister(0, false);
+  writeToOutputRegister(LED1_PIN, false);
   delay(1000);
 
   // Encender el LED conectado a P1_0
@@ -52,55 +51,39 @@ void loop() {
 }
 
 /**
- * Configura un pin específico como salida en el PCA9698 sin afectar otros pines.
- * 
- * @param pin Número del pin (0-7 para P0, 8-15 para P1, etc.)
+ * Configura TODOS los pines del PCA9698 como salidas.
  */
-void configurePinAsOutput(uint8_t pin) {
-  uint8_t port = pin / 8;                    // Determinar el puerto (P0, P1, etc.)
-  uint8_t bit = pin % 8;                     // Bit correspondiente al pin
-  uint8_t iocRegister = 0x18 + port;         // Dirección del registro IOC correspondiente
-  uint8_t currentConfig = 0xFF;              // Valor por defecto (todos como entrada)
+void configureAllPinsAsOutput() {
+  // Dirección de los registros IOC para P0 y P1
+  uint8_t iocRegisters[] = {0x18, 0x19}; // IOC0 y IOC1
 
-  // Leer el estado actual del registro IOC
-  Wire.beginTransmission(PCA9698_ADDRESS);
-  Wire.write(iocRegister); // Seleccionar el registro IOCx
-  if (Wire.endTransmission(false) == 0) { // Mantener la conexión activa
-    Wire.requestFrom(PCA9698_ADDRESS, (uint8_t)1); // Solicitar un byte del registro
-    if (Wire.available()) {
-      currentConfig = Wire.read(); // Leer el valor actual
+  bool allSuccess = true;
+
+  for (uint8_t i = 0; i < sizeof(iocRegisters); i++) {
+    Wire.beginTransmission(PCA9698_ADDRESS);
+    Wire.write(iocRegisters[i]); // Seleccionar el registro IOCx
+    Wire.write(0x00);            // 0x00 = Todos los pines como salidas
+    byte error = Wire.endTransmission();
+
+    if (error == 0) {
+      Serial.print("Registro IOC");
+      Serial.print(i);
+      Serial.println(" configurado a 0x00 (todos salidas) correctamente.");
+    } else {
+      Serial.print("Error al configurar el registro IOC");
+      Serial.print(i);
+      Serial.print(". Código de error: ");
+      Serial.println(error);
+      allSuccess = false;
     }
-  } else {
-    Serial.print("Error al leer el registro IOC para el puerto P");
-    Serial.println(port);
-    return;
   }
 
-  // Modificar el bit correspondiente para configurarlo como salida (0)
-  currentConfig &= ~(1 << bit);
-
-  // Escribir el nuevo estado en el registro IOC
-  Wire.beginTransmission(PCA9698_ADDRESS);
-  Wire.write(iocRegister); // Seleccionar el registro IOCx
-  Wire.write(currentConfig); // Escribir el nuevo estado
-  byte error = Wire.endTransmission();
-
-  if (error == 0) {
-    Serial.print("Pin P");
-    Serial.print(port);
-    Serial.print("_");
-    Serial.print(bit);
-    Serial.println(" configurado como salida correctamente.");
+  if (allSuccess) {
+    Serial.println("Todos los pines configurados como salidas correctamente.");
   } else {
-    Serial.print("Error al configurar el pin P");
-    Serial.print(port);
-    Serial.print("_");
-    Serial.print(bit);
-    Serial.print(". Código de error: ");
-    Serial.println(error);
+    Serial.println("Hubo errores al configurar algunos pines como salidas.");
   }
 }
-
 
 /**
  * Escribe un estado (HIGH/LOW) en el registro de salida del PCA9698 sin afectar otros pines.
@@ -109,9 +92,9 @@ void configurePinAsOutput(uint8_t pin) {
  * @param state Estado del pin: true para HIGH, false para LOW.
  */
 void writeToOutputRegister(uint8_t pin, bool state) {
-  uint8_t port = pin / 8;       // Determinar el puerto (P0, P1, etc.)
-  uint8_t bitMask = (1 << (pin % 8)); // Máscara para el bit correspondiente
-  uint8_t opRegister = 0x08 + port;  // Dirección del registro OP correspondiente
+  uint8_t port = pin / 8;                    // Determinar el puerto (P0, P1, etc.)
+  uint8_t bitMask = (1 << (pin % 8));        // Máscara para el bit correspondiente
+  uint8_t opRegister = 0x08 + port;         // Dirección del registro OP correspondiente
   uint8_t currentState = 0;
 
   // Leer el estado actual del registro de salida
@@ -122,6 +105,10 @@ void writeToOutputRegister(uint8_t pin, bool state) {
     if (Wire.available()) {
       currentState = Wire.read(); // Leer el valor actual
     }
+  } else {
+    Serial.print("Error al leer el registro OP para el puerto P");
+    Serial.println(port);
+    return;
   }
 
   // Modificar solo el bit correspondiente
@@ -133,8 +120,8 @@ void writeToOutputRegister(uint8_t pin, bool state) {
 
   // Escribir el nuevo estado en el registro
   Wire.beginTransmission(PCA9698_ADDRESS);
-  Wire.write(opRegister); // Seleccionar el registro OPx
-  Wire.write(currentState); // Escribir el nuevo estado
+  Wire.write(opRegister);      // Seleccionar el registro OPx
+  Wire.write(currentState);    // Escribir el nuevo estado
   byte error = Wire.endTransmission();
 
   if (error == 0) {
@@ -153,7 +140,6 @@ void writeToOutputRegister(uint8_t pin, bool state) {
     Serial.println(error);
   }
 }
-
 
 /**
  * Activa o desactiva el pin Output Enable (OE) del PCA9698.
